@@ -13,12 +13,16 @@ import {
   Wifi,
   WifiOff,
   Shield,
-  RefreshCw
+  RefreshCw,
+  FileText,
+  Star
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useSettings } from '../../hooks/useSettings';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { useTavusVideo } from '../../hooks/useTavusVideo';
+import { useVideoReports } from '../../hooks/useVideoReports';
+import { VideoReportModal } from './VideoReportModal';
 import toast from 'react-hot-toast';
 import Modal from 'react-modal';
 
@@ -36,15 +40,28 @@ export function VideoConsultation() {
     error: tavusError,
     formatDuration
   } = useTavusVideo();
+  const {
+    reports,
+    loading: reportsLoading,
+    generatingReport,
+    generateReport,
+    loadReports,
+    exportReport,
+    shareReport
+  } = useVideoReports();
 
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [selectedPersonality, setSelectedPersonality] = useState(settings.ai_personality);
+  const [showReports, setShowReports] = useState(false);
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [showReportModal, setShowReportModal] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [mediaPermissionError, setMediaPermissionError] = useState<string | null>(null);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
 
   const maxSessionTime = 3600; // 60 minutes for all users
   const timeRemaining = Math.max(0, maxSessionTime - sessionDuration);
@@ -60,6 +77,13 @@ export function VideoConsultation() {
     };
     return replicaMap[personality] || replicaMap.supportive;
   };
+
+  // Load reports on component mount
+  useEffect(() => {
+    if (user && isConnectedToSupabase) {
+      loadReports();
+    }
+  }, [user, isConnectedToSupabase, loadReports]);
 
   // Initialize local video stream
   const initializeLocalVideo = async () => {
@@ -142,8 +166,12 @@ export function VideoConsultation() {
       cleanupLocalStream();
       
       const replicaId = getReplicaId(selectedPersonality);
-      await startSession(replicaId, maxSessionTime);
-      toast.success('Video consultation started!');
+      const success = await startSession(replicaId, maxSessionTime);
+      
+      if (success) {
+        setSessionStartTime(new Date());
+        toast.success('Video consultation started!');
+      }
     } catch (error) {
       console.error('Failed to start session:', error);
       toast.error('Failed to start video session');
@@ -155,7 +183,26 @@ export function VideoConsultation() {
   const handleEndSession = async () => {
     try {
       await endSession();
+      
+      // Generate session report
+      if (sessionData && sessionStartTime) {
+        const reportData = {
+          sessionId: sessionData.session_id,
+          duration: sessionDuration,
+          conversationTranscript: '', // Would be populated from actual conversation
+          userFeedback: {
+            satisfaction: 4, // Mock data - would come from user input
+            helpfulness: 4,
+            clarity: 4
+          }
+        };
+        
+        await generateReport(reportData);
+      }
+      
+      setSessionStartTime(null);
       toast.success('Video consultation ended');
+      
       // Re-initialize local video after session ends
       setTimeout(() => {
         initializeLocalVideo();
@@ -230,13 +277,96 @@ export function VideoConsultation() {
     <div className="space-y-6">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+        <h1 className="text-3xl font-bold text-white mb-2">
           Face-to-Face AI Consultation
         </h1>
-        <p className="text-gray-600 dark:text-gray-300">
+        <p className="text-gray-300">
           Have a personal video conversation with your AI mental health companion
         </p>
       </div>
+
+      {/* Action Buttons */}
+      <div className="flex justify-center space-x-4">
+        <button
+          onClick={() => setShowReports(!showReports)}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl transition-colors duration-200 flex items-center space-x-2"
+        >
+          <FileText className="h-4 w-4" />
+          <span>Session Reports</span>
+        </button>
+      </div>
+
+      {/* Session Reports */}
+      <AnimatePresence>
+        {showReports && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700"
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+              <FileText className="h-5 w-5 text-blue-500" />
+              <span>Previous Session Reports</span>
+            </h3>
+            
+            {reportsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : reports.length > 0 ? (
+              <div className="space-y-3">
+                {reports.slice(0, 5).map((report) => (
+                  <div
+                    key={report.id}
+                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-200 cursor-pointer"
+                    onClick={() => {
+                      setSelectedReport(report);
+                      setShowReportModal(true);
+                    }}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
+                        <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-white">
+                          Session Report - {new Date(report.created_at).toLocaleDateString()}
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          Duration: {Math.floor(report.session_duration / 60)}m • Quality: {report.conversation_quality}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-1">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`h-4 w-4 ${
+                              i < (report.conversation_quality === 'excellent' ? 5 : 
+                                   report.conversation_quality === 'good' ? 4 : 
+                                   report.conversation_quality === 'fair' ? 3 : 2)
+                                ? 'text-yellow-400 fill-current'
+                                : 'text-gray-300 dark:text-gray-600'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-400">
+                <FileText className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+                <p>No session reports yet. Complete a video consultation to generate your first report!</p>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Connection Status */}
       {(!isOnline || !isConnectedToSupabase) && (
@@ -350,6 +480,14 @@ export function VideoConsultation() {
                 <div className="bg-red-500 w-3 h-3 rounded-full"></div>
               )}
             </div>
+
+            {/* Report Generation Indicator */}
+            {generatingReport && (
+              <div className="absolute bottom-4 left-4 bg-blue-600/90 backdrop-blur-sm text-white px-3 py-2 rounded-lg flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white"></div>
+                <span className="text-sm">Generating report...</span>
+              </div>
+            )}
           </motion.div>
 
           {/* Controls */}
@@ -421,7 +559,7 @@ export function VideoConsultation() {
             animate={{ opacity: 1, x: 0 }}
             className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700"
           >
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center space-x-2">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
               <User className="h-5 w-5" />
               <span>AI Personality</span>
             </h3>
@@ -446,8 +584,8 @@ export function VideoConsultation() {
                     disabled={isSessionActive}
                   />
                   <div>
-                    <p className="font-medium text-gray-900 dark:text-white">{personality.name}</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{personality.description}</p>
+                    <p className="font-medium text-white">{personality.name}</p>
+                    <p className="text-sm text-gray-400">{personality.description}</p>
                   </div>
                 </label>
               ))}
@@ -461,24 +599,31 @@ export function VideoConsultation() {
             transition={{ delay: 0.1 }}
             className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700"
           >
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Session Info</h3>
+            <h3 className="text-lg font-semibold text-white mb-4">Session Info</h3>
             
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-gray-600 dark:text-gray-400">Max Duration:</span>
-                <span className="font-medium text-gray-900 dark:text-white">
+                <span className="text-gray-400">Max Duration:</span>
+                <span className="font-medium text-white">
                   {Math.floor(maxSessionTime / 60)} minutes
                 </span>
               </div>
               
               {isSessionActive && (
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">Time Left:</span>
-                  <span className="font-medium text-gray-900 dark:text-white">
+                  <span className="text-gray-400">Time Left:</span>
+                  <span className="font-medium text-white">
                     {formatDuration(timeRemaining)}
                   </span>
                 </div>
               )}
+
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Total Reports:</span>
+                <span className="font-medium text-white">
+                  {reports.length}
+                </span>
+              </div>
             </div>
           </motion.div>
 
@@ -496,6 +641,7 @@ export function VideoConsultation() {
               <li>• Find a quiet, private space</li>
               <li>• Speak clearly and at normal pace</li>
               <li>• Be open and honest with the AI</li>
+              <li>• Review your session reports for insights</li>
             </ul>
           </motion.div>
         </div>
@@ -517,6 +663,18 @@ export function VideoConsultation() {
           </div>
         </motion.div>
       )}
+
+      {/* Video Report Modal */}
+      <VideoReportModal
+        isOpen={showReportModal}
+        onClose={() => {
+          setShowReportModal(false);
+          setSelectedReport(null);
+        }}
+        report={selectedReport}
+        onExport={exportReport}
+        onShare={shareReport}
+      />
 
       {/* Permission Modal */}
       <Modal

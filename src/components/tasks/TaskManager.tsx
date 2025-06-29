@@ -9,10 +9,12 @@ import {
   Flag,
   Filter,
   Search,
-  Bell
+  Bell,
+  Settings as SettingsIcon
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { useNotifications } from '../../hooks/useNotifications';
+import { useTaskNotifications } from '../../hooks/useTaskNotifications';
+import { TaskNotificationSettings } from './TaskNotificationSettings';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
@@ -31,7 +33,12 @@ interface Task {
 
 export function TaskManager() {
   const { user } = useAuth();
-  const { scheduleTaskReminder } = useNotifications();
+  const { 
+    scheduleAllTaskNotifications, 
+    cancelTaskNotifications, 
+    settings: notificationSettings,
+    permission 
+  } = useTaskNotifications();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTask, setNewTask] = useState({
     title: '',
@@ -42,6 +49,7 @@ export function TaskManager() {
     reminder_enabled: false,
   });
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -100,9 +108,14 @@ export function TaskManager() {
       
       setTasks([data, ...tasks]);
       
-      // Schedule reminder if enabled
-      if (newTask.reminder_enabled && newTask.due_date) {
-        await scheduleTaskReminder(newTask.title, new Date(newTask.due_date));
+      // Schedule notifications if enabled and due date is set
+      if (newTask.reminder_enabled && newTask.due_date && notificationSettings.enabled) {
+        await scheduleAllTaskNotifications(
+          data.id,
+          newTask.title,
+          new Date(newTask.due_date),
+          true
+        );
       }
       
       setNewTask({
@@ -114,7 +127,7 @@ export function TaskManager() {
         reminder_enabled: false,
       });
       setShowAddForm(false);
-      toast.success('Task added successfully!');
+      toast.success('Task added successfully! 🎉');
     } catch (error) {
       console.error('Error adding task:', error);
       toast.error('Failed to add task');
@@ -134,6 +147,11 @@ export function TaskManager() {
         task.id === taskId ? { ...task, completed: !completed } : task
       ));
       
+      // Cancel notifications if task is completed
+      if (!completed) {
+        await cancelTaskNotifications(taskId);
+      }
+      
       toast.success(completed ? 'Task marked incomplete' : 'Task completed! 🎉');
     } catch (error) {
       console.error('Error updating task:', error);
@@ -149,6 +167,9 @@ export function TaskManager() {
         .eq('id', taskId);
 
       if (error) throw error;
+
+      // Cancel any pending notifications
+      await cancelTaskNotifications(taskId);
 
       setTasks(tasks.filter(task => task.id !== taskId));
       toast.success('Task deleted');
@@ -195,16 +216,61 @@ export function TaskManager() {
           <p className="text-gray-300">Stay organized with ADHD-friendly task management</p>
         </div>
         
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => setShowAddForm(true)}
-          className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl flex items-center space-x-2 hover:shadow-lg transition-all duration-200"
-        >
-          <Plus className="h-5 w-5" />
-          <span>Add Task</span>
-        </motion.button>
+        <div className="flex items-center space-x-3">
+          {/* Notification Settings Button */}
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowNotificationSettings(true)}
+            className={`px-4 py-2 rounded-xl flex items-center space-x-2 transition-all duration-200 ${
+              permission === 'granted' && notificationSettings.enabled
+                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+                : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900/50'
+            }`}
+            title="Notification Settings"
+          >
+            <Bell className="h-4 w-4" />
+            <span className="hidden sm:inline">
+              {permission === 'granted' && notificationSettings.enabled ? 'Notifications On' : 'Setup Notifications'}
+            </span>
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowAddForm(true)}
+            className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl flex items-center space-x-2 hover:shadow-lg transition-all duration-200"
+          >
+            <Plus className="h-5 w-5" />
+            <span>Add Task</span>
+          </motion.button>
+        </div>
       </div>
+
+      {/* Notification Status */}
+      {permission !== 'granted' && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4"
+        >
+          <div className="flex items-center space-x-3">
+            <Bell className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <div className="flex-1">
+              <p className="font-medium text-blue-800 dark:text-blue-300">Enable Task Notifications</p>
+              <p className="text-sm text-blue-700 dark:text-blue-400">
+                Get reminded about your tasks and never miss a deadline again!
+              </p>
+            </div>
+            <button
+              onClick={() => setShowNotificationSettings(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+            >
+              Setup
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       {/* Filters and Search */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
@@ -326,7 +392,7 @@ export function TaskManager() {
                 />
                 <label htmlFor="reminder" className="text-sm text-gray-700 dark:text-gray-300 flex items-center space-x-1">
                   <Bell className="h-4 w-4" />
-                  <span>Enable reminder (30 minutes before due date)</span>
+                  <span>Enable smart notifications ({notificationSettings.reminderMinutes} min before due date)</span>
                 </label>
               </div>
 
@@ -407,7 +473,7 @@ export function TaskManager() {
                         {task.reminder_enabled && (
                           <span className="inline-flex items-center text-xs text-purple-600 dark:text-purple-400">
                             <Bell className="h-3 w-3 mr-1" />
-                            Reminder
+                            Smart Notifications
                           </span>
                         )}
                       </div>
@@ -445,6 +511,12 @@ export function TaskManager() {
           </p>
         </motion.div>
       )}
+
+      {/* Task Notification Settings Modal */}
+      <TaskNotificationSettings
+        isOpen={showNotificationSettings}
+        onClose={() => setShowNotificationSettings(false)}
+      />
     </div>
   );
 }
