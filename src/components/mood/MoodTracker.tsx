@@ -163,8 +163,8 @@ export function MoodTracker() {
     <div className="space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Mood Tracker</h1>
-        <p className="text-gray-600 dark:text-gray-300">Track your emotional wellness journey</p>
+        <h1 className="text-3xl font-bold text-white mb-2">Mood Tracker</h1>
+        <p className="text-gray-300">Track your emotional wellness journey</p>
       </div>
 
       {/* Current Mood Entry */}

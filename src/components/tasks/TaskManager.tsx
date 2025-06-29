@@ -8,13 +8,10 @@ import {
   Calendar,
   Flag,
   Filter,
-  Search,
-  Bell
+  Search
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { useNotifications } from '../../hooks/useNotifications';
 import { supabase } from '../../lib/supabase';
-import toast from 'react-hot-toast';
 
 interface Task {
   id: string;
@@ -31,7 +28,6 @@ interface Task {
 
 export function TaskManager() {
   const { user } = useAuth();
-  const { scheduleTaskReminder } = useNotifications();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTask, setNewTask] = useState({
     title: '',
@@ -60,7 +56,6 @@ export function TaskManager() {
       setTasks(data || []);
     } catch (error) {
       console.error('Error loading tasks:', error);
-      toast.error('Failed to load tasks');
     } finally {
       setLoading(false);
     }
@@ -96,14 +91,12 @@ export function TaskManager() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
       
       setTasks([data, ...tasks]);
-      
-      // Schedule reminder if enabled
-      if (newTask.reminder_enabled && newTask.due_date) {
-        await scheduleTaskReminder(newTask.title, new Date(newTask.due_date));
-      }
       
       setNewTask({
         title: '',
@@ -114,10 +107,8 @@ export function TaskManager() {
         reminder_enabled: false,
       });
       setShowAddForm(false);
-      toast.success('Task added successfully!');
     } catch (error) {
       console.error('Error adding task:', error);
-      toast.error('Failed to add task');
     }
   };
 
@@ -133,11 +124,8 @@ export function TaskManager() {
       setTasks(tasks.map(task => 
         task.id === taskId ? { ...task, completed: !completed } : task
       ));
-      
-      toast.success(completed ? 'Task marked incomplete' : 'Task completed! 🎉');
     } catch (error) {
       console.error('Error updating task:', error);
-      toast.error('Failed to update task');
     }
   };
 
@@ -151,10 +139,8 @@ export function TaskManager() {
       if (error) throw error;
 
       setTasks(tasks.filter(task => task.id !== taskId));
-      toast.success('Task deleted');
     } catch (error) {
       console.error('Error deleting task:', error);
-      toast.error('Failed to delete task');
     }
   };
 
@@ -191,19 +177,21 @@ export function TaskManager() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Task Manager</h1>
-          <p className="text-gray-600 dark:text-gray-300">Stay organized with ADHD-friendly task management</p>
+          <h1 className="text-3xl font-bold text-white">Task Manager</h1>
+          <p className="text-gray-300">Stay organized with ADHD-friendly task management</p>
         </div>
         
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => setShowAddForm(true)}
-          className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl flex items-center space-x-2 hover:shadow-lg transition-all duration-200"
-        >
-          <Plus className="h-5 w-5" />
-          <span>Add Task</span>
-        </motion.button>
+        <div className="flex items-center space-x-3">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowAddForm(true)}
+            className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl flex items-center space-x-2 hover:shadow-lg transition-all duration-200"
+          >
+            <Plus className="h-5 w-5" />
+            <span>Add Task</span>
+          </motion.button>
+        </div>
       </div>
 
       {/* Filters and Search */}
@@ -324,9 +312,8 @@ export function TaskManager() {
                   onChange={(e) => setNewTask({ ...newTask, reminder_enabled: e.target.checked })}
                   className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                 />
-                <label htmlFor="reminder" className="text-sm text-gray-700 dark:text-gray-300 flex items-center space-x-1">
-                  <Bell className="h-4 w-4" />
-                  <span>Enable reminder (30 minutes before due date)</span>
+                <label htmlFor="reminder" className="text-sm text-gray-700 dark:text-gray-300">
+                  <span>Enable reminders</span>
                 </label>
               </div>
 
@@ -356,9 +343,25 @@ export function TaskManager() {
           {filteredTasks.map((task) => (
             <motion.div
               key={task.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+              initial={{ opacity: 0, y: 20, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{
+                opacity: 0,
+                y: -100,
+                scale: 0.5,
+                rotate: 30,
+                filter: "blur(16px) grayscale(1)",
+                background: 'linear-gradient(90deg, #000, #222, transparent)',
+                boxShadow: '0 0 80px 40px #000',
+                clipPath: 'polygon(0 0, 100% 0, 100% 80%, 0 100%)',
+                transition: {
+                  duration: 1.2,
+                  ease: [0.4, 0, 0.2, 1],
+                },
+              }}
+              style={{
+                willChange: 'opacity, transform, filter, background, boxShadow, clipPath',
+              }}
               className={`bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all duration-200 ${
                 task.completed ? 'opacity-75' : ''
               }`}
@@ -406,8 +409,7 @@ export function TaskManager() {
 
                         {task.reminder_enabled && (
                           <span className="inline-flex items-center text-xs text-purple-600 dark:text-purple-400">
-                            <Bell className="h-3 w-3 mr-1" />
-                            Reminder
+                            Reminders Enabled
                           </span>
                         )}
                       </div>

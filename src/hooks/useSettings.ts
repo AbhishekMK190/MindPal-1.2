@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import { useNetworkStatus } from './useNetworkStatus';
 import { supabase } from '../lib/supabase';
-import toast from 'react-hot-toast';
 
 export interface UserSettings {
+  id?: string;
+  user_id?: string;
   theme: 'light' | 'dark' | 'auto';
   language: string;
   voice_speed: 'slow' | 'normal' | 'fast';
@@ -12,10 +13,11 @@ export interface UserSettings {
   task_reminders: boolean;
   mood_reminders: boolean;
   daily_summary: boolean;
-  email_notifications: boolean;
   data_sharing: boolean;
   analytics: boolean;
   voice_recordings: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 const defaultSettings: UserSettings = {
@@ -26,7 +28,6 @@ const defaultSettings: UserSettings = {
   task_reminders: true,
   mood_reminders: true,
   daily_summary: true,
-  email_notifications: false,
   data_sharing: false,
   analytics: true,
   voice_recordings: true,
@@ -41,28 +42,16 @@ export function useSettings() {
   const [creatingDefaults, setCreatingDefaults] = useState(false);
 
   const loadSettings = useCallback(async () => {
-    if (loading) {
-      console.warn('Settings load already in progress, skipping.');
-      return;
-    }
-    console.log('Loading settings from Supabase...', { user, isConnectedToSupabase });
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    if (!isConnectedToSupabase) {
-      setLoading(false);
-      return;
-    }
+    if (!user || !isConnectedToSupabase) return;
 
     try {
+      setLoading(true);
       const data = await withRetry(async () => {
         const { data, error } = await supabase
           .from('user_settings')
           .select('*')
           .eq('user_id', user.id)
-          .maybeSingle();
+          .single();
 
         if (error) {
           const isJWTError = await handleSupabaseError(error);
@@ -74,36 +63,20 @@ export function useSettings() {
       });
 
       if (data) {
-        const loadedSettings: UserSettings = {
-          theme: data.theme || 'light',
-          language: data.language || 'en',
-          voice_speed: data.voice_speed || 'normal',
-          ai_personality: data.ai_personality || 'supportive',
-          task_reminders: data.task_reminders ?? true,
-          mood_reminders: data.mood_reminders ?? true,
-          daily_summary: data.daily_summary ?? true,
-          email_notifications: data.email_notifications ?? false,
-          data_sharing: data.data_sharing ?? false,
-          analytics: data.analytics ?? true,
-          voice_recordings: data.voice_recordings ?? true,
-        };
-        setSettings(loadedSettings);
-        applyTheme(loadedSettings.theme);
+        setSettings(data);
       } else {
-        // Create default settings if they don't exist and we're not already creating them
-        if (!creatingDefaults && !saving) {
-          await createDefaultSettings();
-        }
+        // Create default settings if none exist
+        await createDefaultSettings();
       }
     } catch (error) {
       console.error('Error loading settings:', error);
       if (isConnectedToSupabase) {
-        toast.error('Failed to load settings');
+        // toast.error('Failed to load settings');
       }
     } finally {
       setLoading(false);
     }
-  }, [user, handleSupabaseError, creatingDefaults, saving, withRetry, isConnectedToSupabase]);
+  }, [user, isConnectedToSupabase, withRetry, handleSupabaseError]);
 
   const createDefaultSettings = async () => {
     if (!user || creatingDefaults || !isConnectedToSupabase) return;
@@ -133,7 +106,7 @@ export function useSettings() {
     } catch (error) {
       console.error('Error creating default settings:', error);
       if (isConnectedToSupabase) {
-        toast.error('Failed to create default settings');
+        // toast.error('Failed to create default settings');
       }
     } finally {
       setCreatingDefaults(false);
@@ -142,12 +115,12 @@ export function useSettings() {
 
   const updateSettings = async (newSettings: Partial<UserSettings>) => {
     if (!user) {
-      toast.error('Please sign in to save settings');
+      // toast.error('Please sign in to save settings');
       return;
     }
 
     if (!isConnectedToSupabase) {
-      toast.error('Cannot save settings - no connection to server');
+      // toast.error('Cannot save settings - no connection to server');
       return;
     }
 
@@ -180,10 +153,10 @@ export function useSettings() {
         applyTheme(newSettings.theme);
       }
       
-      toast.success('Settings saved successfully!');
+      // toast.success('Settings saved successfully!');
     } catch (error) {
       console.error('Error updating settings:', error);
-      toast.error('Failed to save settings. Please try again.');
+      // toast.error('Failed to save settings. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -201,7 +174,6 @@ export function useSettings() {
   };
 
   useEffect(() => {
-    console.log('useSettings useEffect triggered', { user });
     if (user) {
       loadSettings();
     } else {

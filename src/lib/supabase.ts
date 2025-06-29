@@ -147,7 +147,6 @@ export interface Database {
           task_reminders: boolean;
           mood_reminders: boolean;
           daily_summary: boolean;
-          email_notifications: boolean;
           data_sharing: boolean;
           analytics: boolean;
           voice_recordings: boolean;
@@ -163,7 +162,6 @@ export interface Database {
           task_reminders?: boolean;
           mood_reminders?: boolean;
           daily_summary?: boolean;
-          email_notifications?: boolean;
           data_sharing?: boolean;
           analytics?: boolean;
           voice_recordings?: boolean;
@@ -176,33 +174,9 @@ export interface Database {
           task_reminders?: boolean;
           mood_reminders?: boolean;
           daily_summary?: boolean;
-          email_notifications?: boolean;
           data_sharing?: boolean;
           analytics?: boolean;
           voice_recordings?: boolean;
-        };
-      };
-      notifications: {
-        Row: {
-          id: string;
-          user_id: string;
-          type: 'task_reminder' | 'mood_reminder' | 'daily_summary';
-          title: string;
-          message: string;
-          scheduled_for: string;
-          sent: boolean;
-          created_at: string;
-        };
-        Insert: {
-          user_id: string;
-          type: 'task_reminder' | 'mood_reminder' | 'daily_summary';
-          title: string;
-          message: string;
-          scheduled_for: string;
-          sent?: boolean;
-        };
-        Update: {
-          sent?: boolean;
         };
       };
       encrypted_data: {

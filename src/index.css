@@ -19,42 +19,53 @@ body {
   color: #f1f5f9;
 }
 
-/* Enhanced dark mode text colors */
+/* CRITICAL: Force all headings to be white in dark mode */
 .dark h1,
 .dark h2,
 .dark h3,
 .dark h4,
 .dark h5,
-.dark h6 {
-  color: #f8fafc;
+.dark h6,
+.dark .text-3xl,
+.dark .text-2xl,
+.dark .text-xl,
+.dark .text-lg {
+  color: #ffffff !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
 }
 
+/* Light mode headings */
+h1, h2, h3, h4, h5, h6 {
+  color: #1f2937;
+}
+
+/* Enhanced dark mode text colors */
 .dark p {
   color: #e2e8f0;
 }
 
 .dark .text-gray-900 {
-  color: #f8fafc !important;
+  color: #ffffff !important;
 }
 
 .dark .text-gray-800 {
-  color: #f1f5f9 !important;
+  color: #f8fafc !important;
 }
 
 .dark .text-gray-700 {
-  color: #e2e8f0 !important;
+  color: #f1f5f9 !important;
 }
 
 .dark .text-gray-600 {
-  color: #cbd5e1 !important;
+  color: #e2e8f0 !important;
 }
 
 .dark .text-gray-500 {
-  color: #94a3b8 !important;
+  color: #cbd5e1 !important;
 }
 
 .dark .text-gray-400 {
-  color: #64748b !important;
+  color: #94a3b8 !important;
 }
 
 /* Dark mode background improvements */

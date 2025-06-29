@@ -23,7 +23,6 @@ import { useSettings } from '../../hooks/useSettings';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { useVoice } from '../../hooks/useVoice';
 import { useChatSessions } from '../../hooks/useChatSessions';
-import toast from 'react-hot-toast';
 
 const getGeminiResponse = async (input: string, personality: string, conversationHistory: string = ''): Promise<string> => {
   try {
@@ -225,9 +224,10 @@ export function VoiceAI() {
       } catch (err) {
         if (!continuousRef.current) break;
         // Optionally, handle errors (e.g., no speech detected)
+        console.log('Continuous voice error:', err);
       }
     }
-  }, [speechToSpeech, textToSpeech, settings.language, settings.ai_personality, translateText]);
+  }, [speechToSpeech, textToSpeech, settings.language, settings.ai_personality]);
 
   const stopContinuousVoiceConversation = useCallback(() => {
     continuousRef.current = false;
@@ -249,7 +249,6 @@ export function VoiceAI() {
     if (!input.trim() || !user) return;
     
     if (!canUseAI) {
-      toast.error('Cannot send message - no connection to server');
       return;
     }
     
@@ -293,11 +292,8 @@ export function VoiceAI() {
       if ((autoSpeak || shouldSpeak) && isVoiceEnabled) {
         await textToSpeech(finalResponse);
       }
-      
-      toast.success('AI response generated!');
     } catch (error) {
       console.error('Error processing chat input:', error);
-      toast.error('Failed to process your request');
     } finally {
       setIsProcessing(false);
       setTextInput('');
@@ -305,25 +301,34 @@ export function VoiceAI() {
   };
 
   const handleVoiceInput = async () => {
+    console.log('Voice input button clicked');
+    console.log('canUseVoice:', canUseVoice);
+    console.log('isOnline:', isOnline);
+    console.log('isSpeechRecognitionSupported:', isSpeechRecognitionSupported);
+    console.log('isVoiceEnabled:', isVoiceEnabled);
+    
     if (!canUseVoice) {
       if (!isOnline) {
-        toast.error('Voice features require an internet connection');
+        console.log('No internet connection');
+        return;
       } else if (!isSpeechRecognitionSupported) {
-        toast.error('Speech recognition not supported in this browser');
+        console.log('Speech recognition not supported');
+        return;
       } else if (!isVoiceEnabled) {
-        toast.error('ElevenLabs API key not configured');
+        console.log('Voice not enabled');
+        return;
       }
-      return;
     }
 
     try {
+      console.log('Starting speech recognition...');
       const transcript = await speechToSpeech();
+      console.log('Transcript received:', transcript);
       if (transcript.trim()) {
         await processChatInput(transcript, true); // Auto-speak response for voice input
       }
     } catch (error) {
       console.error('Voice input error:', error);
-      toast.error(error instanceof Error ? error.message : 'Voice input failed');
     }
   };
 
@@ -347,12 +352,10 @@ export function VoiceAI() {
 
   const handleGenerateReport = async () => {
     if (!currentSession || messages.length === 0) {
-      toast.error('No conversation to analyze');
       return;
     }
 
     if (!canUseAI) {
-      toast.error('Cannot generate report - no connection to server');
       return;
     }
     
@@ -360,10 +363,8 @@ export function VoiceAI() {
       setIsProcessing(true);
       const report = await generateAIReport(messages);
       setMoodReport(report);
-      toast.success('AI report generated successfully!');
     } catch (error) {
       console.error('Error generating report:', error);
-      toast.error('Failed to generate report');
     } finally {
       setIsProcessing(false);
     }
@@ -396,17 +397,14 @@ export function VoiceAI() {
         });
       } else {
         await navigator.clipboard.writeText(shareText);
-        toast.success('Chat copied to clipboard!');
       }
     } catch (error) {
       console.error('Error sharing session:', error);
-      toast.error('Failed to share session');
     }
   };
 
   const handleSpeakMessage = async (content: string) => {
     if (!isVoiceEnabled) {
-      toast.error('Text-to-speech not available');
       return;
     }
 
@@ -437,8 +435,8 @@ export function VoiceAI() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Voice AI Companion</h1>
-          <p className="text-gray-600 dark:text-gray-300">
+          <h1 className="text-3xl font-bold text-white mb-2">Voice AI Companion</h1>
+          <p className="text-gray-300">
             {currentSession ? `Chat: ${currentSession.title}` : 'Start a new conversation'}
           </p>
         </div>
@@ -689,31 +687,6 @@ export function VoiceAI() {
               </form>
 
               <div className="flex items-center space-x-2">
-                <button
-                  onClick={handleVoiceInput}
-                  disabled={isProcessing || !canUseVoice}
-                  className={`px-4 py-3 rounded-xl font-medium transition-all duration-200 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                    isRecording
-                      ? 'bg-red-600 hover:bg-red-700 text-white recording-pulse'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white'
-                  }`}
-                  title={!canUseVoice ? 'Voice features require internet connection and API key' : 'Start voice conversation'}
-                >
-                  {isRecording ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-                  <span className="hidden sm:inline">{isRecording ? 'Listening...' : 'Voice'}</span>
-                </button>
-                
-                {currentSession && messages.length > 0 && (
-                  <button
-                    onClick={handleGenerateReport}
-                    disabled={isProcessing || !canUseAI}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-xl transition-all duration-200 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Generate AI mood report"
-                  >
-                    <FileText className="h-5 w-5" />
-                    <span className="hidden sm:inline">Report</span>
-                  </button>
-                )}
               </div>
             </div>
           </div>
@@ -728,14 +701,12 @@ export function VoiceAI() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
-            onClick={() => setMoodReport(null)}
           >
             <motion.div
               initial={{ scale: 0.95 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0.95 }}
               className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
             >
               <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">AI-Generated Mood Analysis Report</h3>
               
@@ -818,7 +789,6 @@ export function VoiceAI() {
                   onClick={() => {
                     const reportText = `AI Mood Analysis Report\n\nOverall Mood: ${moodReport.overall_mood}\nStress Level: ${moodReport.stress_level}\nEmotions: ${moodReport.emotions?.join(', ') || 'N/A'}\n\nSummary: ${moodReport.summary}\n\nRecommendations:\n${moodReport.recommendations?.map((r: string) => `• ${r}`).join('\n') || 'None'}`;
                     navigator.clipboard.writeText(reportText);
-                    toast.success('Report copied to clipboard!');
                   }}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors duration-200"
                 >
