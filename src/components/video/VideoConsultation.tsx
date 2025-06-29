@@ -161,6 +161,12 @@ export function VideoConsultation() {
       return;
     }
 
+    // Additional check to prevent starting session when already active
+    if (isSessionActive) {
+      toast.error('A video session is already active. Please end the current session first.');
+      return;
+    }
+
     try {
       // Clean up local stream before starting session
       cleanupLocalStream();
@@ -534,7 +540,7 @@ export function VideoConsultation() {
             ) : (
               <button
                 onClick={handleStartSession}
-                disabled={isLoading || !isOnline || !isConnectedToSupabase || !!mediaPermissionError}
+                disabled={isLoading || !isOnline || !isConnectedToSupabase || !!mediaPermissionError || isSessionActive}
                 className="bg-gradient-to-r from-purple-600 to-blue-600 hover:shadow-lg text-white px-6 py-3 rounded-full transition-all duration-200 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Phone className="h-5 w-5" />

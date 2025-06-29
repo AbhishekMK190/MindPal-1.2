@@ -154,6 +154,12 @@ export function useTavusVideo() {
   }, [tavusApiKey, isOnline]);
 
   const startSession = useCallback(async (replicaId: string, maxSessionDuration?: number): Promise<boolean> => {
+    // Check if session is already active
+    if (isSessionActive) {
+      toast.error('A video session is already active. Please end the current session first.');
+      return false;
+    }
+
     if (!user) {
       toast.error('Please sign in to start a video session');
       return false;
@@ -218,7 +224,7 @@ export function useTavusVideo() {
       stopLocalVideo();
       return false;
     }
-  }, [user, createSession, startLocalVideo, stopLocalVideo, startTimer, withRetry, handleSupabaseError]);
+  }, [isSessionActive, user, createSession, startLocalVideo, stopLocalVideo, startTimer, withRetry, handleSupabaseError]);
 
   const endSession = useCallback(async (): Promise<void> => {
     try {
