@@ -15,7 +15,12 @@ import {
   Shield,
   RefreshCw,
   FileText,
-  Star
+  Star,
+  Maximize,
+  Minimize,
+  MessageSquare,
+  Send,
+  X
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useSettings } from '../../hooks/useSettings';
@@ -57,11 +62,16 @@ export function VideoConsultation() {
   const [showReports, setShowReports] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showFullscreenChat, setShowFullscreenChat] = useState(false);
+  const [chatMessages, setChatMessages] = useState<Array<{id: string, type: 'user' | 'ai', content: string, timestamp: Date}>>([]);
+  const [chatInput, setChatInput] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [mediaPermissionError, setMediaPermissionError] = useState<string | null>(null);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
+  const fullscreenRef = useRef<HTMLDivElement>(null);
 
   const maxSessionTime = 3600; // 60 minutes for all users
   const timeRemaining = Math.max(0, maxSessionTime - sessionDuration);
@@ -176,6 +186,12 @@ export function VideoConsultation() {
       
       if (success) {
         setSessionStartTime(new Date());
+        setChatMessages([{
+          id: Date.now().toString(),
+          type: 'ai',
+          content: 'Hello! I\'m your AI companion. How are you feeling today?',
+          timestamp: new Date()
+        }]);
         toast.success('Video consultation started!');
       }
     } catch (error) {
@@ -195,7 +211,7 @@ export function VideoConsultation() {
         const reportData = {
           sessionId: sessionData.session_id,
           duration: sessionDuration,
-          conversationTranscript: '', // Would be populated from actual conversation
+          conversationTranscript: chatMessages.map(m => `${m.type}: ${m.content}`).join('\n'),
           userFeedback: {
             satisfaction: 4, // Mock data - would come from user input
             helpfulness: 4,
@@ -207,6 +223,9 @@ export function VideoConsultation() {
       }
       
       setSessionStartTime(null);
+      setChatMessages([]);
+      setIsFullscreen(false);
+      setShowFullscreenChat(false);
       toast.success('Video consultation ended');
       
       // Re-initialize local video after session ends
@@ -237,6 +256,61 @@ export function VideoConsultation() {
         setIsAudioEnabled(audioTrack.enabled);
       }
     }
+  };
+
+  const toggleFullscreen = async () => {
+    if (!fullscreenRef.current) return;
+
+    try {
+      if (!isFullscreen) {
+        if (fullscreenRef.current.requestFullscreen) {
+          await fullscreenRef.current.requestFullscreen();
+        } else if ((fullscreenRef.current as any).webkitRequestFullscreen) {
+          await (fullscreenRef.current as any).webkitRequestFullscreen();
+        } else if ((fullscreenRef.current as any).msRequestFullscreen) {
+          await (fullscreenRef.current as any).msRequestFullscreen();
+        }
+        setIsFullscreen(true);
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen();
+        } else if ((document as any).msExitFullscreen) {
+          await (document as any).msExitFullscreen();
+        }
+        setIsFullscreen(false);
+        setShowFullscreenChat(false);
+      }
+    } catch (error) {
+      console.error('Fullscreen toggle failed:', error);
+      toast.error('Failed to toggle fullscreen');
+    }
+  };
+
+  const sendChatMessage = () => {
+    if (!chatInput.trim()) return;
+
+    const userMessage = {
+      id: Date.now().toString(),
+      type: 'user' as const,
+      content: chatInput,
+      timestamp: new Date()
+    };
+
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+
+    // Simulate AI response (in production, this would integrate with your AI service)
+    setTimeout(() => {
+      const aiResponse = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai' as const,
+        content: 'Thank you for sharing that with me. I understand how you\'re feeling. Can you tell me more about what\'s been on your mind lately?',
+        timestamp: new Date()
+      };
+      setChatMessages(prev => [...prev, aiResponse]);
+    }, 1000);
   };
 
   const retryMediaAccess = async () => {
@@ -278,6 +352,29 @@ export function VideoConsultation() {
     { id: 'friendly', name: 'Friendly & Casual', description: 'Warm and conversational' },
     { id: 'motivational', name: 'Motivational', description: 'Inspiring and encouraging' },
   ];
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!(document.fullscreenElement || 
+        (document as any).webkitFullscreenElement || 
+        (document as any).msFullscreenElement);
+      setIsFullscreen(isCurrentlyFullscreen);
+      if (!isCurrentlyFullscreen) {
+        setShowFullscreenChat(false);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('msfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('msfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -424,17 +521,21 @@ export function VideoConsultation() {
         {/* Main Video Area */}
         <div className="lg:col-span-2">
           <motion.div
+            ref={fullscreenRef}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-black rounded-2xl overflow-hidden aspect-video relative"
+            className={`bg-black rounded-2xl overflow-hidden aspect-video relative ${
+              isFullscreen ? 'fixed inset-0 z-50 rounded-none aspect-auto' : ''
+            }`}
           >
             {/* AI Video Stream */}
             {isSessionActive && sessionData?.session_url ? (
               <iframe
                 src={sessionData.session_url}
                 className="w-full h-full"
-                allow="camera; microphone"
+                allow="camera; microphone; fullscreen"
                 title="AI Video Consultation"
+                sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-presentation"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-900 to-blue-900">
@@ -447,28 +548,151 @@ export function VideoConsultation() {
             )}
 
             {/* Local Video Preview */}
-            <div className="absolute bottom-4 right-4 w-32 h-24 bg-gray-900 rounded-lg overflow-hidden border-2 border-white/20">
-              {mediaPermissionError ? (
-                <div className="w-full h-full flex items-center justify-center bg-gray-800">
-                  <Shield className="h-6 w-6 text-gray-400" />
-                </div>
-              ) : (
-                <>
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    muted
-                    playsInline
-                    className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
-                  />
-                  {!isVideoEnabled && (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-800">
-                      <VideoOff className="h-6 w-6 text-gray-400" />
+            {!isFullscreen && (
+              <div className="absolute bottom-4 right-4 w-32 h-24 bg-gray-900 rounded-lg overflow-hidden border-2 border-white/20">
+                {mediaPermissionError ? (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-800">
+                    <Shield className="h-6 w-6 text-gray-400" />
+                  </div>
+                ) : (
+                  <>
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      muted
+                      playsInline
+                      className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
+                    />
+                    {!isVideoEnabled && (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-800">
+                        <VideoOff className="h-6 w-6 text-gray-400" />
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Fullscreen Chat Panel */}
+            {isFullscreen && (
+              <AnimatePresence>
+                {showFullscreenChat && (
+                  <motion.div
+                    initial={{ x: '100%' }}
+                    animate={{ x: 0 }}
+                    exit={{ x: '100%' }}
+                    className="absolute top-0 right-0 w-96 h-full bg-black/90 backdrop-blur-xl border-l border-white/20 flex flex-col"
+                  >
+                    {/* Chat Header */}
+                    <div className="p-4 border-b border-white/20 flex items-center justify-between">
+                      <h3 className="text-white font-semibold">Session Chat</h3>
+                      <button
+                        onClick={() => setShowFullscreenChat(false)}
+                        className="text-white/60 hover:text-white transition-colors duration-200"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
                     </div>
-                  )}
-                </>
-              )}
-            </div>
+
+                    {/* Chat Messages */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                      {chatMessages.map((message) => (
+                        <div
+                          key={message.id}
+                          className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-xs px-4 py-2 rounded-lg ${
+                              message.type === 'user'
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-white/10 text-white border border-white/20'
+                            }`}
+                          >
+                            <p className="text-sm">{message.content}</p>
+                            <p className="text-xs opacity-70 mt-1">
+                              {message.timestamp.toLocaleTimeString()}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Chat Input */}
+                    <div className="p-4 border-t border-white/20">
+                      <div className="flex space-x-2">
+                        <input
+                          type="text"
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && sendChatMessage()}
+                          placeholder="Type your message..."
+                          className="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        />
+                        <button
+                          onClick={sendChatMessage}
+                          className="bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-lg transition-colors duration-200"
+                        >
+                          <Send className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            )}
+
+            {/* Fullscreen Controls */}
+            {isFullscreen && (
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center space-x-4 bg-black/50 backdrop-blur-sm rounded-full px-6 py-3">
+                <button
+                  onClick={toggleVideo}
+                  className={`p-3 rounded-full transition-all duration-200 ${
+                    isVideoEnabled
+                      ? 'bg-gray-700 text-white hover:bg-gray-600'
+                      : 'bg-red-500 text-white hover:bg-red-600'
+                  }`}
+                >
+                  {isVideoEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
+                </button>
+
+                <button
+                  onClick={toggleAudio}
+                  className={`p-3 rounded-full transition-all duration-200 ${
+                    isAudioEnabled
+                      ? 'bg-gray-700 text-white hover:bg-gray-600'
+                      : 'bg-red-500 text-white hover:bg-red-600'
+                  }`}
+                >
+                  {isAudioEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+                </button>
+
+                <button
+                  onClick={() => setShowFullscreenChat(!showFullscreenChat)}
+                  className={`p-3 rounded-full transition-all duration-200 ${
+                    showFullscreenChat
+                      ? 'bg-purple-600 text-white hover:bg-purple-700'
+                      : 'bg-gray-700 text-white hover:bg-gray-600'
+                  }`}
+                >
+                  <MessageSquare className="h-5 w-5" />
+                </button>
+
+                <button
+                  onClick={handleEndSession}
+                  className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-full transition-all duration-200 flex items-center space-x-2"
+                >
+                  <PhoneOff className="h-5 w-5" />
+                  <span>End Session</span>
+                </button>
+
+                <button
+                  onClick={toggleFullscreen}
+                  className="p-3 rounded-full bg-gray-700 text-white hover:bg-gray-600 transition-all duration-200"
+                >
+                  <Minimize className="h-5 w-5" />
+                </button>
+              </div>
+            )}
 
             {/* Session Timer */}
             {isSessionActive && (
@@ -497,160 +721,175 @@ export function VideoConsultation() {
           </motion.div>
 
           {/* Controls */}
-          <div className="flex items-center justify-center space-x-4 mt-6">
-            <button
-              onClick={toggleVideo}
-              disabled={!!mediaPermissionError}
-              className={`p-3 rounded-full transition-all duration-200 ${
-                mediaPermissionError
-                  ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                  : isVideoEnabled
-                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                  : 'bg-red-500 text-white hover:bg-red-600'
-              }`}
-              title={mediaPermissionError ? 'Camera access required' : isVideoEnabled ? 'Turn off camera' : 'Turn on camera'}
-            >
-              {isVideoEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
-            </button>
-
-            <button
-              onClick={toggleAudio}
-              disabled={!!mediaPermissionError}
-              className={`p-3 rounded-full transition-all duration-200 ${
-                mediaPermissionError
-                  ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                  : isAudioEnabled
-                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                  : 'bg-red-500 text-white hover:bg-red-600'
-              }`}
-              title={mediaPermissionError ? 'Microphone access required' : isAudioEnabled ? 'Mute microphone' : 'Unmute microphone'}
-            >
-              {isAudioEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
-            </button>
-
-            {isSessionActive ? (
+          {!isFullscreen && (
+            <div className="flex items-center justify-center space-x-4 mt-6">
               <button
-                onClick={handleEndSession}
-                disabled={isLoading}
-                className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-full transition-all duration-200 flex items-center space-x-2 disabled:opacity-50"
+                onClick={toggleVideo}
+                disabled={!!mediaPermissionError}
+                className={`p-3 rounded-full transition-all duration-200 ${
+                  mediaPermissionError
+                    ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    : isVideoEnabled
+                    ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                    : 'bg-red-500 text-white hover:bg-red-600'
+                }`}
+                title={mediaPermissionError ? 'Camera access required' : isVideoEnabled ? 'Turn off camera' : 'Turn on camera'}
               >
-                <PhoneOff className="h-5 w-5" />
-                <span>End Session</span>
+                {isVideoEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
               </button>
-            ) : (
-              <button
-                onClick={handleStartSession}
-                disabled={isLoading || !isOnline || !isConnectedToSupabase || !!mediaPermissionError || isSessionActive}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:shadow-lg text-white px-6 py-3 rounded-full transition-all duration-200 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Phone className="h-5 w-5" />
-                <span>{isLoading ? 'Starting...' : 'Start Session'}</span>
-              </button>
-            )}
 
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="p-3 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-all duration-200"
-              title="Settings"
-            >
-              <Settings className="h-5 w-5" />
-            </button>
-          </div>
+              <button
+                onClick={toggleAudio}
+                disabled={!!mediaPermissionError}
+                className={`p-3 rounded-full transition-all duration-200 ${
+                  mediaPermissionError
+                    ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    : isAudioEnabled
+                    ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                    : 'bg-red-500 text-white hover:bg-red-600'
+                }`}
+                title={mediaPermissionError ? 'Microphone access required' : isAudioEnabled ? 'Mute microphone' : 'Unmute microphone'}
+              >
+                {isAudioEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+              </button>
+
+              {isSessionActive ? (
+                <button
+                  onClick={handleEndSession}
+                  disabled={isLoading}
+                  className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-full transition-all duration-200 flex items-center space-x-2 disabled:opacity-50"
+                >
+                  <PhoneOff className="h-5 w-5" />
+                  <span>End Session</span>
+                </button>
+              ) : (
+                <button
+                  onClick={handleStartSession}
+                  disabled={isLoading || !isOnline || !isConnectedToSupabase || !!mediaPermissionError || isSessionActive}
+                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:shadow-lg text-white px-6 py-3 rounded-full transition-all duration-200 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Phone className="h-5 w-5" />
+                  <span>{isLoading ? 'Starting...' : 'Start Session'}</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="p-3 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-all duration-200"
+                title="Settings"
+              >
+                <Settings className="h-5 w-5" />
+              </button>
+
+              {isSessionActive && (
+                <button
+                  onClick={toggleFullscreen}
+                  className="p-3 rounded-full bg-purple-600 hover:bg-purple-700 text-white transition-all duration-200"
+                  title="Enter fullscreen"
+                >
+                  <Maximize className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Settings Panel */}
-        <div className="space-y-6">
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700"
-          >
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
-              <User className="h-5 w-5" />
-              <span>AI Personality</span>
-            </h3>
-            
-            <div className="space-y-3">
-              {personalities.map((personality) => (
-                <label
-                  key={personality.id}
-                  className={`block p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
-                    selectedPersonality === personality.id
-                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                      : 'border-gray-200 dark:border-gray-600 hover:border-purple-300 dark:hover:border-purple-500'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="personality"
-                    value={personality.id}
-                    checked={selectedPersonality === personality.id}
-                    onChange={(e) => setSelectedPersonality(e.target.value as any)}
-                    className="sr-only"
-                    disabled={isSessionActive}
-                  />
-                  <div>
-                    <p className="font-medium text-white">{personality.name}</p>
-                    <p className="text-sm text-gray-400">{personality.description}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Session Info */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700"
-          >
-            <h3 className="text-lg font-semibold text-white mb-4">Session Info</h3>
-            
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Max Duration:</span>
-                <span className="font-medium text-white">
-                  {Math.floor(maxSessionTime / 60)} minutes
-                </span>
-              </div>
+        {!isFullscreen && (
+          <div className="space-y-6">
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700"
+            >
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+                <User className="h-5 w-5" />
+                <span>AI Personality</span>
+              </h3>
               
-              {isSessionActive && (
+              <div className="space-y-3">
+                {personalities.map((personality) => (
+                  <label
+                    key={personality.id}
+                    className={`block p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+                      selectedPersonality === personality.id
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                        : 'border-gray-200 dark:border-gray-600 hover:border-purple-300 dark:hover:border-purple-500'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="personality"
+                      value={personality.id}
+                      checked={selectedPersonality === personality.id}
+                      onChange={(e) => setSelectedPersonality(e.target.value as any)}
+                      className="sr-only"
+                      disabled={isSessionActive}
+                    />
+                    <div>
+                      <p className="font-medium text-white">{personality.name}</p>
+                      <p className="text-sm text-gray-400">{personality.description}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* Session Info */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700"
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">Session Info</h3>
+              
+              <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Time Left:</span>
+                  <span className="text-gray-400">Max Duration:</span>
                   <span className="font-medium text-white">
-                    {formatDuration(timeRemaining)}
+                    {Math.floor(maxSessionTime / 60)} minutes
                   </span>
                 </div>
-              )}
+                
+                {isSessionActive && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400">Time Left:</span>
+                    <span className="font-medium text-white">
+                      {formatDuration(timeRemaining)}
+                    </span>
+                  </div>
+                )}
 
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Total Reports:</span>
-                <span className="font-medium text-white">
-                  {reports.length}
-                </span>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Total Reports:</span>
+                  <span className="font-medium text-white">
+                    {reports.length}
+                  </span>
+                </div>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
 
-          {/* Tips */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-6 border border-blue-200 dark:border-blue-800"
-          >
-            <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-300 mb-3">Tips for Better Sessions</h3>
-            <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-400">
-              <li>• Ensure good lighting on your face</li>
-              <li>• Use headphones for better audio quality</li>
-              <li>• Find a quiet, private space</li>
-              <li>• Speak clearly and at normal pace</li>
-              <li>• Be open and honest with the AI</li>
-              <li>• Review your session reports for insights</li>
-            </ul>
-          </motion.div>
-        </div>
+            {/* Tips */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-6 border border-blue-200 dark:border-blue-800"
+            >
+              <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-300 mb-3">Tips for Better Sessions</h3>
+              <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-400">
+                <li>• Ensure good lighting on your face</li>
+                <li>• Use headphones for better audio quality</li>
+                <li>• Find a quiet, private space</li>
+                <li>• Speak clearly and at normal pace</li>
+                <li>• Be open and honest with the AI</li>
+                <li>• Use fullscreen mode for immersive experience</li>
+                <li>• Try the chat feature during sessions</li>
+              </ul>
+            </motion.div>
+          </div>
+        )}
       </div>
 
       {/* Error Display */}

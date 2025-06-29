@@ -95,6 +95,7 @@ export function useTavusVideo() {
       setIsLoading(true);
       setError(null);
 
+      // Enhanced API call with better error handling
       const response = await fetch('https://tavusapi.com/v2/conversations', {
         method: 'POST',
         headers: {
@@ -106,27 +107,42 @@ export function useTavusVideo() {
           callback_url: config.callback_url,
           properties: {
             max_call_duration: config.max_session_duration || 3600,
+            // Add additional properties to ensure proper session creation
+            conversation_name: `MindPal Session ${Date.now()}`,
+            participant_name: user?.email?.split('@')[0] || 'User',
           },
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.text();
-        let errorMessage = `Tavus API error: ${response.status} - ${errorData}`;
+        let errorMessage = `Tavus API error: ${response.status}`;
+        
+        try {
+          const parsedError = JSON.parse(errorData);
+          if (parsedError.message) {
+            errorMessage = parsedError.message;
+          }
+        } catch (parseError) {
+          // If we can't parse the error, use the raw text
+          if (errorData) {
+            errorMessage = errorData;
+          }
+        }
         
         // Handle specific error cases
         if (response.status === 400) {
-          try {
-            const parsedError = JSON.parse(errorData);
-            if (parsedError.message && parsedError.message.includes('maximum concurrent conversations')) {
-              errorMessage = 'You already have an active video session. Please end your current session before starting a new one, or try again in a few minutes if you believe no session is active.';
-            }
-          } catch (parseError) {
-            // If we can't parse the error, check if it contains the concurrent conversations message
-            if (errorData.includes('maximum concurrent conversations')) {
-              errorMessage = 'You already have an active video session. Please end your current session before starting a new one, or try again in a few minutes if you believe no session is active.';
-            }
+          if (errorMessage.includes('maximum concurrent conversations')) {
+            errorMessage = 'You already have an active video session. Please wait a few minutes and try again.';
+          } else if (errorMessage.includes('replica')) {
+            errorMessage = 'Invalid AI replica configuration. Please try again.';
           }
+        } else if (response.status === 401) {
+          errorMessage = 'Invalid API key. Please check your Tavus configuration.';
+        } else if (response.status === 429) {
+          errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+        } else if (response.status >= 500) {
+          errorMessage = 'Tavus service is temporarily unavailable. Please try again later.';
         }
         
         throw new Error(errorMessage);
@@ -134,6 +150,11 @@ export function useTavusVideo() {
 
       const data = await response.json();
       
+      // Validate the response data
+      if (!data.conversation_id || !data.conversation_url) {
+        throw new Error('Invalid response from Tavus API - missing session data');
+      }
+
       const session: TavusSession = {
         session_id: data.conversation_id,
         session_url: data.conversation_url,
@@ -151,7 +172,7 @@ export function useTavusVideo() {
     } finally {
       setIsLoading(false);
     }
-  }, [tavusApiKey, isOnline]);
+  }, [tavusApiKey, isOnline, user]);
 
   const startSession = useCallback(async (replicaId: string, maxSessionDuration?: number): Promise<boolean> => {
     // Check if session is already active
@@ -172,11 +193,27 @@ export function useTavusVideo() {
         return false;
       }
 
-      // Create Tavus session
-      const session = await createSession({
-        replica_id: replicaId,
-        max_session_duration: maxSessionDuration || 3600,
-      });
+      // Create Tavus session with retry logic
+      let session: TavusSession | null = null;
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      while (!session && retryCount < maxRetries) {
+        session = await createSession({
+          replica_id: replicaId,
+          max_session_duration: maxSessionDuration || 3600,
+        });
+
+        if (!session) {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            toast.loading(`Retrying connection... (${retryCount}/${maxRetries})`, { id: 'retry-session' });
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+          }
+        } else {
+          toast.dismiss('retry-session');
+        }
+      }
 
       if (!session) {
         stopLocalVideo();
@@ -193,7 +230,7 @@ export function useTavusVideo() {
                 user_id: user.id,
                 session_id: session.session_id,
                 conversation_id: session.conversation_id,
-                is_pro_session: false, // All sessions are now available to all users
+                is_pro_session: false,
                 session_config: {
                   replica_id: replicaId,
                   max_session_duration: maxSessionDuration,
@@ -214,7 +251,7 @@ export function useTavusVideo() {
 
       setIsSessionActive(true);
       startTimer();
-      toast.success('Video session started!');
+      toast.success('Video session started successfully!');
       return true;
     } catch (error) {
       console.error('Error starting session:', error);
@@ -233,12 +270,16 @@ export function useTavusVideo() {
       // End Tavus session if active
       if (sessionData?.session_id && tavusApiKey) {
         try {
-          await fetch(`https://tavusapi.com/v2/conversations/${sessionData.session_id}/end`, {
+          const response = await fetch(`https://tavusapi.com/v2/conversations/${sessionData.session_id}/end`, {
             method: 'POST',
             headers: {
               'x-api-key': tavusApiKey,
             },
           });
+
+          if (!response.ok) {
+            console.warn('Failed to end Tavus session via API:', response.status);
+          }
         } catch (error) {
           console.warn('Failed to end Tavus session:', error);
         }
