@@ -437,8 +437,8 @@ export function VoiceAI() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Voice AI Companion</h1>
-          <p className="text-gray-600 dark:text-gray-300">
+          <h1 className="text-3xl font-bold text-white mb-2">Voice AI Companion</h1>
+          <p className="text-gray-300">
             {currentSession ? `Chat: ${currentSession.title}` : 'Start a new conversation'}
           </p>
         </div>

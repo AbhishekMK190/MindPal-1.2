@@ -19,21 +19,31 @@ body {
   color: #f1f5f9;
 }
 
-/* Enhanced dark mode text colors - IMPROVED VISIBILITY */
+/* CRITICAL: Force all headings to be white in dark mode */
 .dark h1,
 .dark h2,
 .dark h3,
 .dark h4,
 .dark h5,
-.dark h6 {
+.dark h6,
+.dark .text-3xl,
+.dark .text-2xl,
+.dark .text-xl,
+.dark .text-lg {
   color: #ffffff !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
 }
 
+/* Light mode headings */
+h1, h2, h3, h4, h5, h6 {
+  color: #1f2937;
+}
+
+/* Enhanced dark mode text colors */
 .dark p {
   color: #e2e8f0;
 }
 
-/* Force white text for all headings in dark mode */
 .dark .text-gray-900 {
   color: #ffffff !important;
 }
@@ -56,29 +66,6 @@ body {
 
 .dark .text-gray-400 {
   color: #94a3b8 !important;
-}
-
-/* Ensure all heading elements are visible */
-h1, h2, h3, h4, h5, h6 {
-  color: #1f2937;
-}
-
-.dark h1, 
-.dark h2, 
-.dark h3, 
-.dark h4, 
-.dark h5, 
-.dark h6 {
-  color: #ffffff !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-/* Specific overrides for page titles */
-.dark .text-3xl,
-.dark .text-2xl,
-.dark .text-xl,
-.dark .text-lg {
-  color: #ffffff !important;
 }
 
 /* Dark mode background improvements */
