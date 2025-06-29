@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import toast from 'react-hot-toast';
+import { supabase } from '../lib/supabase';
 
 interface NetworkStatus {
   isOnline: boolean;
@@ -79,7 +79,6 @@ export function useNetworkStatus() {
     const status = await updateNetworkStatus();
     
     if (status.isOnline && status.isConnectedToSupabase) {
-      toast.success('Connection restored!');
       setNetworkStatus(prev => ({ ...prev, retryCount: 0 }));
     }
 

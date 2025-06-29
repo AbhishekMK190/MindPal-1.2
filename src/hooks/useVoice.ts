@@ -1,7 +1,6 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSettings } from './useSettings';
 import { useNetworkStatus } from './useNetworkStatus';
-import toast from 'react-hot-toast';
 
 interface VoiceConfig {
   voiceId: string;
@@ -40,12 +39,10 @@ export function useVoice() {
 
   const textToSpeech = useCallback(async (text: string): Promise<void> => {
     if (!elevenLabsApiKey) {
-      toast.error('ElevenLabs API key not configured');
       return;
     }
 
     if (!isOnline) {
-      toast.error('Internet connection required for text-to-speech');
       return;
     }
 
@@ -107,14 +104,12 @@ export function useVoice() {
         setIsPlaying(false);
         URL.revokeObjectURL(audioUrl);
         audioRef.current = null;
-        toast.error('Failed to play audio');
       };
 
       await audio.play();
     } catch (error) {
       console.error('Text-to-speech error:', error);
       setIsPlaying(false);
-      toast.error('Failed to generate speech');
     }
   }, [elevenLabsApiKey, isOnline, getVoiceSpeed]);
 
@@ -149,47 +144,24 @@ export function useVoice() {
 
       recognition.onstart = () => {
         setIsRecording(true);
-        toast.success('Listening... Speak now!');
       };
 
-      recognition.onresult = (event) => {
+      recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
-        setIsRecording(false);
         resolve(transcript);
       };
 
-      recognition.onerror = (event) => {
+      recognition.onerror = (event: any) => {
         setIsRecording(false);
-        
-        let errorMessage = 'Speech recognition failed';
-        
-        switch (event.error) {
-          case 'network':
-            errorMessage = 'Network error: Please check your internet connection and try again';
-            break;
-          case 'not-allowed':
-            errorMessage = 'Microphone access denied. Please allow microphone permissions and try again';
-            break;
-          case 'no-speech':
-            errorMessage = 'No speech detected. Please speak clearly and try again';
-            break;
-          case 'audio-capture':
-            errorMessage = 'Microphone not found or not working. Please check your microphone';
-            break;
-          case 'service-not-allowed':
-            errorMessage = 'Speech recognition service not available. Please try again later';
-            break;
-          case 'bad-grammar':
-            errorMessage = 'Speech recognition grammar error. Please try speaking again';
-            break;
-          case 'language-not-supported':
-            errorMessage = 'Language not supported by speech recognition';
-            break;
-          default:
-            errorMessage = `Speech recognition error: ${event.error}`;
+        if (event.error === 'no-speech') {
+          // No speech detected
+        } else if (event.error === 'audio-capture') {
+          // Audio capture error
+        } else if (event.error === 'not-allowed') {
+          // Permission denied
+        } else {
+          // Other error
         }
-        
-        reject(new Error(errorMessage));
       };
 
       recognition.onend = () => {

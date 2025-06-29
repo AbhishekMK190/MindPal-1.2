@@ -3,7 +3,6 @@ import { useAuth } from './useAuth';
 import { useNetworkStatus } from './useNetworkStatus';
 import { useEncryption } from './useEncryption';
 import { supabase } from '../lib/supabase';
-import toast from 'react-hot-toast';
 
 interface ChatMessage {
   id: string;
@@ -68,7 +67,7 @@ export function useChatSessions() {
     } catch (error) {
       console.error('Error loading chat sessions:', error);
       if (isConnectedToSupabase) {
-        toast.error('Failed to load chat sessions');
+        // toast.error('Failed to load chat sessions');
       }
     } finally {
       setLoading(false);
@@ -100,7 +99,7 @@ export function useChatSessions() {
     } catch (error) {
       console.error('Error loading messages:', error);
       if (isConnectedToSupabase) {
-        toast.error('Failed to load messages');
+        // toast.error('Failed to load messages');
       }
     }
   }, [user, handleSupabaseError, withRetry, isConnectedToSupabase]);
@@ -108,7 +107,7 @@ export function useChatSessions() {
   const createNewSession = async (title?: string) => {
     if (!user || !isConnectedToSupabase) {
       if (!isConnectedToSupabase) {
-        toast.error('Cannot create session - no connection to server');
+        // toast.error('Cannot create session - no connection to server');
       }
       return null;
     }
@@ -139,12 +138,12 @@ export function useChatSessions() {
         setCurrentSession(newSession);
         setMessages([]);
         
-        toast.success('New chat session created!');
+        // toast.success('New chat session created!');
         return newSession;
       }
     } catch (error) {
       console.error('Error creating session:', error);
-      toast.error('Failed to create new session');
+      // toast.error('Failed to create new session');
     }
     
     return null;
@@ -153,7 +152,7 @@ export function useChatSessions() {
   const addMessage = async (sessionId: string, messageType: 'user' | 'ai', content: string) => {
     if (!user || !isConnectedToSupabase) {
       if (!isConnectedToSupabase) {
-        toast.error('Cannot send message - no connection to server');
+        // toast.error('Cannot send message - no connection to server');
       }
       return null;
     }
@@ -197,7 +196,7 @@ export function useChatSessions() {
       }
     } catch (error) {
       console.error('Error adding message:', error);
-      toast.error('Failed to save message');
+      // toast.error('Failed to save message');
     }
     
     return null;
@@ -206,7 +205,7 @@ export function useChatSessions() {
   const deleteSession = async (sessionId: string) => {
     if (!user || !isConnectedToSupabase) {
       if (!isConnectedToSupabase) {
-        toast.error('Cannot delete session - no connection to server');
+        // toast.error('Cannot delete session - no connection to server');
       }
       return;
     }
@@ -233,17 +232,17 @@ export function useChatSessions() {
         setMessages([]);
       }
 
-      toast.success('Chat session deleted');
+      // toast.success('Chat session deleted');
     } catch (error) {
       console.error('Error deleting session:', error);
-      toast.error('Failed to delete session');
+      // toast.error('Failed to delete session');
     }
   };
 
   const updateSessionTitle = async (sessionId: string, title: string) => {
     if (!user || !isConnectedToSupabase) {
       if (!isConnectedToSupabase) {
-        toast.error('Cannot update title - no connection to server');
+        // toast.error('Cannot update title - no connection to server');
       }
       return;
     }
@@ -271,17 +270,17 @@ export function useChatSessions() {
         setCurrentSession(prev => prev ? { ...prev, title } : null);
       }
 
-      toast.success('Session title updated');
+      // toast.success('Session title updated');
     } catch (error) {
       console.error('Error updating session title:', error);
-      toast.error('Failed to update title');
+      // toast.error('Failed to update title');
     }
   };
 
   const generateMoodReport = async (sessionId: string): Promise<MoodAnalysis | null> => {
     if (!user || !isConnectedToSupabase) {
       if (!isConnectedToSupabase) {
-        toast.error('Cannot generate report - no connection to server');
+        // toast.error('Cannot generate report - no connection to server');
       }
       return null;
     }
@@ -328,11 +327,11 @@ export function useChatSessions() {
         }
       });
 
-      toast.success('Mood report generated!');
+      // toast.success('Mood report generated!');
       return analysis;
     } catch (error) {
       console.error('Error generating mood report:', error);
-      toast.error('Failed to generate mood report');
+      // toast.error('Failed to generate mood report');
       return null;
     }
   };
@@ -353,11 +352,11 @@ export function useChatSessions() {
       } else {
         // Fallback: copy to clipboard
         await navigator.clipboard.writeText(`${shareData.title}\n${shareData.url}`);
-        toast.success('Chat link copied to clipboard!');
+        // toast.success('Chat link copied to clipboard!');
       }
     } catch (error) {
       console.error('Error sharing session:', error);
-      toast.error('Failed to share session');
+      // toast.error('Failed to share session');
     }
   };
 

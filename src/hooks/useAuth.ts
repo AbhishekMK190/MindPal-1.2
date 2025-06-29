@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import toast from 'react-hot-toast';
+import { User, Session, AuthError } from '@supabase/supabase-js';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -50,7 +49,6 @@ export function useAuth() {
     if (error?.message?.includes('JWT expired') || 
         error?.code === 'PGRST301' || 
         (error?.status === 401 && error?.body?.includes('JWT expired'))) {
-      toast.error('Your session has expired. Please sign in again.');
       await signOut();
       return true; // Indicates this was a JWT expiry error
     }

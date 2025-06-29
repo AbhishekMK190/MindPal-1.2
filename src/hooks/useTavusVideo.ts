@@ -2,7 +2,6 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from './useAuth';
 import { useNetworkStatus } from './useNetworkStatus';
 import { supabase } from '../lib/supabase';
-import toast from 'react-hot-toast';
 
 interface TavusSession {
   session_id: string;
@@ -67,7 +66,6 @@ export function useTavusVideo() {
       return stream;
     } catch (error) {
       console.error('Error accessing local media:', error);
-      toast.error('Failed to access camera/microphone');
       return null;
     }
   }, []);
@@ -82,12 +80,10 @@ export function useTavusVideo() {
   // Tavus API calls
   const createSession = useCallback(async (config: TavusConfig): Promise<TavusSession | null> => {
     if (!tavusApiKey) {
-      toast.error('Tavus API key not configured');
       return null;
     }
 
     if (!isOnline) {
-      toast.error('Internet connection required for video sessions');
       return null;
     }
 
@@ -167,7 +163,6 @@ export function useTavusVideo() {
       console.error('Error creating Tavus session:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to create video session';
       setError(errorMessage);
-      toast.error(errorMessage);
       return null;
     } finally {
       setIsLoading(false);
@@ -182,7 +177,6 @@ export function useTavusVideo() {
     }
 
     if (!user) {
-      toast.error('Please sign in to start a video session');
       return false;
     }
 
@@ -251,13 +245,13 @@ export function useTavusVideo() {
 
       setIsSessionActive(true);
       startTimer();
+
       toast.success('Video session started successfully!');
       return true;
     } catch (error) {
       console.error('Error starting session:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to start video session';
       setError(errorMessage);
-      toast.error(errorMessage);
       stopLocalVideo();
       return false;
     }
@@ -316,10 +310,10 @@ export function useTavusVideo() {
       setSessionData(null);
       setError(null);
       
-      toast.success('Video session ended');
+      return;
     } catch (error) {
       console.error('Error ending session:', error);
-      toast.error('Failed to properly end session');
+      return;
     } finally {
       setIsLoading(false);
     }

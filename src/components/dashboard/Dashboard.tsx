@@ -10,7 +10,6 @@ import {
   Award,
   ExternalLink,
   Plus,
-  Bell,
   WifiOff,
   AlertTriangle,
   Sparkles,
@@ -21,11 +20,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
-import { useNotifications } from '../../hooks/useNotifications';
 import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import toast from 'react-hot-toast';
 
 const FloatingElement = ({ children, delay }: { children: React.ReactNode; delay: number }) => (
   <motion.div
@@ -44,13 +41,7 @@ export function Dashboard() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { scrollY } = useScroll();
-  const { 
-    scheduleMoodReminder, 
-    scheduleDailySummary, 
-    requestNotificationPermission,
-    permission 
-  } = useNotifications();
-  
+
   const [stats, setStats] = useState({
     totalTasks: 0,
     completedTasks: 0,
@@ -70,10 +61,8 @@ export function Dashboard() {
     const canceled = searchParams.get('canceled');
     
     if (success === 'true') {
-      toast.success('Welcome to MindPal! 🎉');
       window.history.replaceState({}, '', '/dashboard');
     } else if (canceled === 'true') {
-      toast.error('Action was canceled. You can try again anytime.');
       window.history.replaceState({}, '', '/dashboard');
     }
   }, [searchParams]);
@@ -168,14 +157,11 @@ export function Dashboard() {
   useEffect(() => {
     if (user && !dataLoaded) {
       loadStats();
-      if (permission === 'default') {
-        requestNotificationPermission().catch(console.warn);
-      }
     } else if (!user) {
       setLoading(false);
       setDataLoaded(false);
     }
-  }, [user, loadStats, permission, requestNotificationPermission, dataLoaded]);
+  }, [user, loadStats, dataLoaded]);
 
   const handleQuickAction = async (action: string) => {
     try {
@@ -189,23 +175,6 @@ export function Dashboard() {
         case 'task':
           navigate('/tasks');
           break;
-        case 'schedule-mood-reminder':
-          if (!isConnectedToSupabase) {
-            toast.error('Cannot schedule reminder - no connection to server');
-            return;
-          }
-          await scheduleMoodReminder();
-          break;
-        case 'schedule-daily-summary':
-          if (!isConnectedToSupabase) {
-            toast.error('Cannot schedule summary - no connection to server');
-            return;
-          }
-          await scheduleDailySummary();
-          break;
-        case 'enable-notifications':
-          await requestNotificationPermission();
-          break;
         case 'retry-connection':
           setLoading(true);
           setDataLoaded(false);
@@ -216,7 +185,6 @@ export function Dashboard() {
       }
     } catch (error) {
       console.error('Error handling quick action:', error);
-      toast.error('Failed to perform action');
     }
   };
 
@@ -411,43 +379,6 @@ export function Dashboard() {
         </FloatingElement>
       )}
 
-      {/* Notification Permission Banner */}
-      {permission !== 'granted' && !error && (
-        <FloatingElement delay={0.4}>
-          <motion.div
-            className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 backdrop-blur-xl border border-blue-500/30 rounded-2xl p-6"
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            whileHover={{ scale: 1.02 }}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <motion.div
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                >
-                  <Bell className="h-6 w-6 text-blue-400" />
-                </motion.div>
-                <div>
-                  <p className="font-semibold text-blue-200">Enable Notifications</p>
-                  <p className="text-sm text-blue-300/80">
-                    Get reminders for tasks, mood check-ins, and daily summaries
-                  </p>
-                </div>
-              </div>
-              <motion.button
-                onClick={() => handleQuickAction('enable-notifications')}
-                className="bg-blue-500 hover:bg-blue-400 text-white px-6 py-3 rounded-xl font-semibold transition-colors duration-200"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                Enable
-              </motion.button>
-            </div>
-          </motion.div>
-        </FloatingElement>
-      )}
-
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((card, index) => {
@@ -590,55 +521,6 @@ export function Dashboard() {
                     </motion.div>
                     <h3 className="font-bold text-lg mb-1">{item.title}</h3>
                     <p className="text-sm opacity-90">{item.subtitle}</p>
-                  </div>
-                </motion.button>
-              ))}
-            </div>
-
-            {/* Notification Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {[
-                {
-                  action: 'schedule-mood-reminder',
-                  title: 'Schedule Mood Reminder',
-                  subtitle: 'Get reminded to check your mood tomorrow',
-                  gradient: 'from-blue-500 via-cyan-600 to-teal-600',
-                  delay: 1.4
-                },
-                {
-                  action: 'schedule-daily-summary',
-                  title: 'Schedule Daily Summary',
-                  subtitle: 'Get your end-of-day report tonight',
-                  gradient: 'from-indigo-500 via-purple-600 to-pink-600',
-                  delay: 1.5
-                }
-              ].map((item) => (
-                <motion.button
-                  key={item.action}
-                  onClick={() => handleQuickAction(item.action)}
-                  disabled={!isConnectedToSupabase}
-                  className={`bg-gradient-to-r ${item.gradient} text-white p-6 rounded-2xl hover:shadow-2xl transition-all duration-300 text-left flex items-center space-x-4 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group`}
-                  whileHover={{ scale: 1.02, y: -3 }}
-                  whileTap={{ scale: 0.98 }}
-                  initial={{ opacity: 0, x: -30 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: item.delay, duration: 0.6 }}
-                >
-                  <motion.div
-                    className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                    initial={false}
-                  />
-                  <div className="relative z-10 flex items-center space-x-4">
-                    <motion.div
-                      whileHover={{ rotate: 360, scale: 1.1 }}
-                      transition={{ duration: 0.6 }}
-                    >
-                      <Plus className="h-6 w-6" />
-                    </motion.div>
-                    <div>
-                      <h3 className="font-bold">{item.title}</h3>
-                      <p className="text-sm opacity-90">{item.subtitle}</p>
-                    </div>
                   </div>
                 </motion.button>
               ))}
